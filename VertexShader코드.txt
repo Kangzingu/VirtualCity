@@ -1,0 +1,87 @@
+#version 400 core
+
+in vec3 pos;//위치
+in vec3 col;//색
+out vec3 f_col;//넘겨주는 색
+uniform mat4 rotate;//회전
+uniform mat4 translate;//이동
+uniform mat4 scale;//크기
+uniform mat4 ortho;
+uniform mat4 view;
+
+uniform vec2 l_type;
+uniform vec2 l_multi;
+
+uniform vec3 l_pos;//빛의위치
+uniform vec3 l_pos2;//두번째 빛의위치
+
+uniform vec3 camera_pos;//카메라의 위치
+in vec3 nor;//각 점의 방향
+//////////////
+
+void main()
+{
+	mat4 MVP;
+	mat4 MV;
+	mat4 M;
+	vec3 MVpos;
+	vec3 MVnor;
+	vec3 MVd_Pos;//direct광원일땡
+	float ambient;
+	float diffuse;
+	float specular;
+	
+	MVP=ortho*view*translate;
+	MV=view*translate;
+	M=translate;
+	if(l_multi[0]>0.5){//여러 광원인경우
+		
+		if(l_type[0]>0.5){//점 vs 방향
+			MVpos = vec3(MV * vec4(0.0, 0.0, 0.0, 1.0));
+		}
+		else{
+			MVpos = vec3(MV * vec4(pos,1.0));
+		}
+		MVnor = vec3(MV * vec4(nor, 0.0));
+	
+		ambient=0.5;//a 가중치
+
+		float distance = length(l_pos - MVpos);//보는 입장에서 빛과 거리
+		vec3 MVlight = normalize(l_pos - MVpos);
+		diffuse=max(dot(MVnor,MVlight),0.1);//보는 입장에서 빛과 물체노말에 팅긴후 벡터 구하고
+		diffuse = diffuse * (1.0 / (1.0 + (0.25 * distance * distance)));//거리에 따라 크기조절
+	
+		float specularStrength=0.5;//s 가중치
+		vec3 MVcamera=normalize(camera_pos-MVpos);
+		vec3 MVreflect=reflect(-MVlight,nor);
+		float spec=pow(max(dot(MVcamera,MVreflect),0.0),32);
+		specular=specularStrength*spec*1.0;
+	
+		if(l_multi[0]>1.5){//여러 광원인경우
+			if(l_type[0]>0.5){//점 vs 방향
+				MVpos = vec3(MV * vec4(0.0, 0.0, 0.0, 1.0));
+			}
+			else{
+				MVpos = vec3(MV * vec4(pos,1.0));
+			}
+			MVnor = vec3(MV * vec4(nor, 0.0));
+			distance = length(l_pos2 - MVpos);//보는 입장에서 빛과 거리
+			MVlight = normalize(l_pos2 - MVpos);
+			float diffuse2=max(dot(MVnor,MVlight),0.1);//보는 입장에서 빛과 물체노말에 팅긴후 벡터 구하고
+			diffuse += diffuse2 * (1.0 / (1.0 + (0.25 * distance * distance)));//거리에 따라 크기조절
+		
+			MVcamera=normalize(camera_pos-MVpos);
+			MVreflect=reflect(-MVlight,nor);
+			spec=pow(max(dot(MVcamera,MVreflect),0.0),32);
+			specular+=specularStrength*spec*1.0;
+		}
+	}
+	else{
+		ambient=1.0;
+		diffuse=0.0;
+		specular=0.0;
+	}
+	gl_Position = ortho*view*translate*vec4(pos,1.0);
+	gl_PointSize = 30.0;
+	f_col=(ambient+diffuse+specular)*col;
+}

@@ -1,0 +1,874 @@
+//C:\Users\kanrh\source\repos\ConsoleApplication7
+#include "stdafx.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <cmath>
+#include <time.h>
+//#include <GL/glew.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <GL/glew.h>
+#include <gl/wglew.h>
+#include <gl/glut.h>
+#include <GL/freeglut.h>
+
+glm::vec3 someThing;
+
+#define ScreenX 480
+#define ScreenY 480
+
+using namespace std;
+
+GLuint g_programID;
+GLuint buf;
+GLuint buf_index;
+
+//필수
+
+vector <GLfloat> buildingVect;
+vector <GLuint> buildingVectIndex;
+float **vertexNormal;
+GLfloat map[] = { 1,0,1,1,1,1,0,1,0,
+1,0,-1,1,1,1,0,1,0,
+-1,0,-1,1,1,1,0,1,0,
+1,0,1,1,1,1,0,1,0,
+-1,0,-1,1,1,1,0,1,0,
+-1,0,1,1,1,1,0,1,0,
+//바닥
+-0.25,0,-0.1,0,1,0,0,1,0,
+-0.25,0,0.75,0,1,0,0,1,0,
+-0.05,0,0.75,0,1,0,0,1,0,
+-0.25,0,-0.1,0,1,0,0,1,0,
+-0.05,0,0.75,0,1,0,0,1,0,
+-0.05,0,-0.1,0,1,0,0,1,0,
+//바닥
+-0.25 + 0.30,0,-0.1,0,1,0,0,1,0,
+-0.25 + 0.30,0,0.75,0,1,0,0,1,0,
+-0.05 + 0.30,0,0.75,0,1,0,0,1,0,
+-0.25 + 0.30,0,-0.1,0,1,0,0,1,0,
+-0.05 + 0.30,0,0.75,0,1,0,0,1,0,
+-0.05 + 0.30,0,-0.1,0,1,0,0,1,0 };
+
+GLfloat light[] = { 0,0,0,1,1,0,0,0,0,
+			0,0,0,1,1,0,0,0,0,
+			0,0,0,1,1,0,0,0,0,
+			0,0,0,1,1,0,0,0,0,
+			0,0,0,1,1,0,0,0,0,
+			0,0,0,1,1,0,0,0,0 };
+glm::vec3 ect;
+glm::vec3 lightpos;
+glm::vec3 lightpos2;
+glm::vec2 lightType;
+glm::vec2 lightMulti;
+//요까징
+
+GLuint cube_mode;
+
+glm::vec3 cube_location;
+glm::vec3 cube_target;
+glm::vec3 cube_up;
+GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
+{
+	//create the shaders
+	GLuint VertexShaderID = glCreateShader(GL_VERTEX_SHADER);
+	GLuint FragmentShaderID = glCreateShader(GL_FRAGMENT_SHADER);
+
+	GLint Result = GL_FALSE;
+	int InfoLogLength;
+
+	//Read the vertex shader code from the file
+	string VertexShaderCode;
+	ifstream VertexShaderStream(vertex_file_path, ios::in);
+	if (VertexShaderStream.is_open())
+	{
+		string Line = "";
+		while (getline(VertexShaderStream, Line))
+			VertexShaderCode += "\n" + Line;
+		VertexShaderStream.close();
+	}
+
+	//Compile Vertex Shader
+	printf("Compiling shader : %s\n", vertex_file_path);
+	char const* VertexSourcePointer = VertexShaderCode.c_str();
+	glShaderSource(VertexShaderID, 1, &VertexSourcePointer, NULL);
+	glCompileShader(VertexShaderID);
+
+	//Check Vertex Shader
+	glGetShaderiv(VertexShaderID, GL_COMPILE_STATUS, &Result);
+	glGetShaderiv(VertexShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+	if (InfoLogLength != 0)
+	{
+		vector<char> VertexShaderErrorMessage(InfoLogLength);
+		glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
+		fprintf(stdout, "%s\n", &VertexShaderErrorMessage[0]);
+	}
+
+	//Read the fragment shader code from the file
+	string FragmentShaderCode;
+	ifstream FragmentShaderStream(fragment_file_path, ios::in);
+	if (FragmentShaderStream.is_open())
+	{
+		string Line = "";
+		while (getline(FragmentShaderStream, Line))
+			FragmentShaderCode += "\n" + Line;
+		FragmentShaderStream.close();
+	}
+
+	//Compile Fragment Shader
+	printf("Compiling shader : %s\n", fragment_file_path);
+	char const* FragmentSourcePointer = FragmentShaderCode.c_str();
+	glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer, NULL);
+	glCompileShader(FragmentShaderID);
+
+	//Check Fragment Shader
+	glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
+	glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+	if (InfoLogLength != 0)
+	{
+		vector<char> FragmentShaderErrorMessage(InfoLogLength);
+		glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
+		fprintf(stdout, "%s\n", &FragmentShaderErrorMessage[0]);
+	}
+	//Link the program
+	fprintf(stdout, "Linking program\n");
+	GLuint ProgramID = glCreateProgram();
+	glAttachShader(ProgramID, VertexShaderID);
+	glAttachShader(ProgramID, FragmentShaderID);
+	glLinkProgram(ProgramID);
+
+	// Check the program
+	glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
+	glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+	vector<char> ProgramErrorMessage(max(InfoLogLength, int(1)));
+	glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
+	fprintf(stdout, "%s\n", &ProgramErrorMessage[0]);
+
+	glDeleteShader(VertexShaderID);
+	glDeleteShader(FragmentShaderID);
+
+	return ProgramID;
+}
+
+void change_all() {
+
+}
+void mouseWheel(int wheel, int direction, int x, int y) {
+	glm::vec4 vec_result = { 0,0,0,0 };
+	glm::mat4 mat_trans=glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
+	float Ax, Ay, Az, Bx, By, Bz = { 0 };
+	float sum = 0;
+	if (direction > 0) {
+		//up: 줌 인
+		sum = fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2])*10;
+		Ax = (cube_target[0] - cube_location[0])/sum;
+		Ay = (cube_target[1] - cube_location[1])/sum;
+		Az = (cube_target[2] - cube_location[2])/sum;
+		mat_trans=glm::translate(glm::mat4(), glm::vec3(-Ax, -Ay, -Az));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+	}
+	else {//direction<=0
+		//down: 줌 아웃
+		sum = fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2]) * 10;
+		Ax = (cube_target[0] - cube_location[0]) / sum;
+		Ay = (cube_target[1] - cube_location[1]) / sum;
+		Az = (cube_target[2] - cube_location[2]) / sum;
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(Ax, Ay, Az));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+	}
+	glutPostRedisplay();//새로그리기(스크린변경)
+}
+void myMouse(int button, int state, int x, int y)
+{
+	if ((button == GLUT_LEFT_BUTTON) && (state == GLUT_DOWN))//왼쪽버튼, 눌렸을떄
+	{
+		{
+			//float nx = 2.0*(float)x / (float)(ScreenX - 1) - 1.0;
+			//float ny = -2.0*(float)y / (float)(ScreenY - 1) + 1.0;//스크린좌표 상수로해놔서 나중에 변수로 바꿔야편함
+			//glm::vec3 Z = glm::vec3(nx, ny,nx+ny);//바라보는 방향?
+			//Z= glm::normalize(Z);
+			//glm::vec3 Xp = glm::vec3(1, 1, 1);//도는 기준 선
+			//glm::vec3 Y = glm::cross(Z,Xp);
+			//glm::vec3 X = glm::cross(Y, Z);
+			//Y = glm::normalize(Y);
+			//X= glm::normalize(X);
+			//glm::mat4 glmatRotate = glm::mat4 (glm::vec4(X, 0), glm::vec4(Y, 0), glm::vec4(Z, 0), glm::vec4(0, 0, 0, 1));
+			//GLuint rotateLoc = glGetUniformLocation(g_programID, "rotate");
+			//glUniformMatrix4fv(rotateLoc, 1, GL_FALSE, &glmatRotate[0][0]);
+			////rotateStack++;
+			////glm::mat4 glmatRotate = glm::rotate(glm::mat4(), glm::radians(15.0f*rotateStack), glm::vec3(0, 1, 0));
+			glutPostRedisplay();//새로그리기(스크린변경)
+		}
+	}
+}
+void specialKeys(int key, int x, int y) {
+	glm::mat4 mat_rotate = glm::rotate(glm::mat4(), glm::radians(0.0f), glm::vec3(0, 1, 0));
+	glm::mat4 mat_trans = glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
+	glm::vec4 vec_result = { 0,0,0,0 };
+	float Ax, Ay, Az, Bx, By, Bz = { 0 };
+	float sum = 0;
+	switch (key)
+	{
+	case GLUT_KEY_UP:
+		cube_target[1] += 0.05;
+		break;
+	case GLUT_KEY_LEFT:
+		Ax = -cube_location[0];
+		Ay = -cube_location[1];
+		Az = -cube_location[2];
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(Ax, Ay, Az));
+		mat_rotate = glm::rotate(glm::mat4(), glm::radians(3.0f), glm::vec3(0, 1, 0));
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		//옮기고
+		vec_result = mat_rotate*glm::vec4(vec_result);
+		//돌리고
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(-Ax, -Ay, -Az));
+		vec_result = mat_trans*glm::vec4(vec_result);
+		//다시 옮기고
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case GLUT_KEY_DOWN:
+		cube_target[1] -= 0.05;
+		break;
+	case GLUT_KEY_RIGHT:
+		Ax = -cube_location[0];
+		Ay = -cube_location[1];
+		Az = -cube_location[2];
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(Ax, Ay, Az));
+		mat_rotate = glm::rotate(glm::mat4(), glm::radians(-3.0f), glm::vec3(0, 1, 0));
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		//옮기고
+		vec_result = mat_rotate*glm::vec4(vec_result);
+		//돌리고
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(-Ax, -Ay, -Az));
+		vec_result = mat_trans*glm::vec4(vec_result);
+		//다시 옮기고
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case GLUT_KEY_CTRL_L:
+		cube_target[1] -= 0.1;
+		cube_location[1] -= 0.1;
+		break;
+	case GLUT_KEY_SHIFT_L:
+		cube_target[1] += 0.1;
+		cube_location[1] += 0.1;
+		break;
+	}
+	glutPostRedisplay();//스크린 변화 반영
+}
+void normalKeys(unsigned char key, int x, int y) {
+	glm::mat4 mat_rotate = glm::rotate(glm::mat4(), glm::radians(0.0f), glm::vec3(0, 1, 0));
+	glm::mat4 mat_trans = glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
+	glm::vec4 vec_result = { 0,0,0,0 };
+	float Ax, Ay, Az, Bx, By, Bz = { 0 };
+	float sum = 0;
+	GLuint lightPosLoc = glGetUniformLocation(g_programID, "l_pos");
+	GLuint lightTypeLoc = glGetUniformLocation(g_programID, "l_type");
+	GLuint lightMultiLoc = glGetUniformLocation(g_programID, "l_multi");
+	switch (key)
+	{
+	case 113://q: 모드변경
+		if (cube_mode == 0)
+			cube_mode = 1;
+		else
+			cube_mode = 0;
+		break;
+	case 119://w
+		sum = fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2]) * 50;
+		Ax = (cube_target[0] - cube_location[0]) / sum;
+		Ay = (cube_target[1] - cube_location[1]) / sum;
+		Az = (cube_target[2] - cube_location[2]) / sum;
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(Ax, 0, Az));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case 97://a
+		sum = (fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2])) * 50;
+		Ax = (cube_target[0] - cube_location[0]) / sum;
+		Ay = (cube_target[1] - cube_location[1]) / sum;
+		Az = (cube_target[2] - cube_location[2]) / sum;
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(Az, 0, -Ax));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case 115://s
+		sum = (fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2])) * 50;
+		Ax = (cube_target[0] - cube_location[0]) / sum;
+		Ay = (cube_target[1] - cube_location[1]) / sum;
+		Az = (cube_target[2] - cube_location[2]) / sum;
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(-Ax, 0, -Az));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case 100://d
+		sum = (fabs(cube_target[0] - cube_location[0]) +
+			fabs(cube_target[1] - cube_location[1]) +
+			fabs(cube_target[2] - cube_location[2])) * 50;
+		Ax = (cube_target[0] - cube_location[0]) / sum;
+		Ay = (cube_target[1] - cube_location[1]) / sum;
+		Az = (cube_target[2] - cube_location[2]) / sum;
+		mat_trans = glm::translate(glm::mat4(), glm::vec3(-Az, 0, Ax));
+		vec_result = mat_trans*glm::vec4(cube_location, 1);
+		cube_location[0] = vec_result[0];
+		cube_location[1] = vec_result[1];
+		cube_location[2] = vec_result[2];
+		vec_result = mat_trans*glm::vec4(cube_target, 1);
+		cube_target[0] = vec_result[0];
+		cube_target[1] = vec_result[1];
+		cube_target[2] = vec_result[2];
+		break;
+	case 103://g
+		break;
+	case 116://t
+		if (lightType[0] > 0.5) {
+			lightType = { 0,0 };//점:0, 방향:1
+		}
+		else {
+			lightType = { 1,1 };//점:0, 방향:1
+		}
+		glUniform2fv(lightTypeLoc, 1, &lightType[0]);
+		break;
+	case 109://m
+		if (lightMulti[0] > 0.5&&lightMulti[0]<1.5) {
+			//1개일때
+			lightMulti = { 2,2 };//2개 만든다
+		}
+		else if(lightMulti[0]>1.5&&lightMulti[0]<2.5) {
+			//2개일때
+			lightMulti = { 0,0 };//0개
+		}
+		else {
+			//0개일때
+			lightMulti = { 1,1 };//1개 만든다
+		}
+		glUniform2fv(lightMultiLoc, 1, &lightMulti[0]);
+		break;
+	case 110://n 빛 옮기깅
+		if (lightpos[2] < -1) {//너무멀리가면
+			lightpos[2] = 1;//다시 원상태로
+		}
+		lightpos[2] -= 0.1;
+		glUniform3fv(lightPosLoc, 1, &lightpos[0]);
+		light[2] = lightpos[2];
+		light[11] = lightpos[2];
+		light[20] = lightpos[2];
+		break;
+	case 98://b
+		break;
+	case 27://Esc
+			//종료
+		exit(0);
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();//스크린 변화 반영
+}
+void renderScene(void)
+{
+
+	//Clear all pixels
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//Let's draw something here
+
+	/*GLuint rotateLoc = glGetUniformLocation(g_programID, "rotate");
+	glm::mat4 mat_rotate = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0, 1, 0));
+	glUniformMatrix4fv(rotateLoc, 1, GL_FALSE, &mat_rotate[0][0]);
+	*/
+	if (cube_mode == 0) {
+		GLuint orthoLoc = glGetUniformLocation(g_programID, "ortho");
+		glm::mat4 mat_ortho = glm::ortho(-2.0f, 2.0f, -2.0f, 2.0f, 0.0f, 100.0f);
+		glUniformMatrix4fv(orthoLoc, 1, GL_FALSE, &mat_ortho[0][0]);
+	}
+	else {
+		GLuint persLoc = glGetUniformLocation(g_programID, "ortho");
+		glm::mat4 mat_pers = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, -0.0f, 100.0f);
+		glUniformMatrix4fv(persLoc, 1, GL_FALSE, &mat_pers[0][0]);
+	}
+	GLuint viewLoc = glGetUniformLocation(g_programID, "view");
+	glm::mat4 mat_view = glm::lookAt(cube_location, cube_target, cube_up);
+	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &mat_view[0][0]);
+	//뷰 수정
+	//
+	GLuint lightPosLoc = glGetUniformLocation(g_programID, "l_pos");
+	glUniform3fv(lightPosLoc, 1, &lightpos[0]);
+	GLuint lightPos2Loc = glGetUniformLocation(g_programID, "l_pos2");
+	glUniform3fv(lightPos2Loc, 1, &lightpos2[0]);
+	GLuint lightColAmbientLoc = glGetUniformLocation(g_programID, "l_col_a");
+	ect = { 0.8,0.8,0.8};
+	glUniform3fv(lightColAmbientLoc, 1, &ect[0]);
+	GLuint lightColDiffuseLoc= glGetUniformLocation(g_programID, "l_col_d");
+	ect = { 0.2,0.2,0.2 };
+	glUniform3fv(lightColDiffuseLoc, 1, &ect[0]);
+	GLuint lightColSpecularLoc = glGetUniformLocation(g_programID, "l_col_s");
+	ect = { 1.0,1.0,1.0 };
+	glUniform3fv(lightColSpecularLoc, 1,  &ect[0]);
+	GLuint cameraPosLoc = glGetUniformLocation(g_programID, "camera_pos");
+	ect = cube_location;
+	glUniform3fv(cameraPosLoc, 1, &ect[0]);
+	GLuint lightTypeLoc = glGetUniformLocation(g_programID, "l_type");
+	glUniform2fv(lightTypeLoc, 1, &lightType[0]);
+	GLuint lightMultiLoc = glGetUniformLocation(g_programID, "l_multi");
+	glUniform2fv(lightMultiLoc, 1, &lightMulti[0]);
+
+	//
+	glBindBuffer(GL_ARRAY_BUFFER, buf);//sizeof(float)*v_count
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf_index);//sizeof(float)*v_count
+	GLint posAttrib = glGetAttribLocation(g_programID, "pos");
+	GLint colAttrib = glGetAttribLocation(g_programID, "col");
+	GLint norAttrib = glGetAttribLocation(g_programID, "nor");
+	glLineWidth(2);//선 두께 설정
+	glm::mat4 mat_trans = glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
+	GLuint transLoc = glGetUniformLocation(g_programID, "translate");
+	glUniformMatrix4fv(transLoc, 1, GL_FALSE, &mat_trans[0][0]);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(map), map, GL_STATIC_DRAW);
+	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, 0);
+	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(3 * sizeof(GLfloat)));
+	glVertexAttribPointer(norAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(6 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(posAttrib);
+	glEnableVertexAttribArray(colAttrib);
+	glEnableVertexAttribArray(norAttrib);
+	glDrawArrays(GL_TRIANGLES, 0, 18);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(light), light, GL_STATIC_DRAW);
+	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, 0);
+	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(3 * sizeof(GLfloat)));
+	glVertexAttribPointer(norAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(6 * sizeof(GLfloat)));
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glBufferData(GL_ARRAY_BUFFER, buildingVect.size() * sizeof(GLfloat), buildingVect.data(), GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, buildingVectIndex.size() * sizeof(GLuint), buildingVectIndex.data(), GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, 0);
+	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(3 * sizeof(GLfloat)));
+	glVertexAttribPointer(norAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 9, (GLvoid*)(6 * sizeof(GLfloat)));
+	//for (float i = -10.0; i < 10.0; i += 1.0) {
+	//	for (float j = -10.0; j < 10.0; j += 1.0) {
+	glDrawElements(GL_TRIANGLES, buildingVectIndex.size(), GL_UNSIGNED_INT, (GLvoid*)0);
+	//	}
+	//}
+
+	glutSwapBuffers();
+}
+void init()
+{
+	//initilize the glew and check the errors.
+
+	GLenum res = glewInit();
+	if (res != GLEW_OK)
+	{
+		fprintf(stderr, "Error: '%s' \n", glewGetErrorString(res));
+	}
+
+	//select the background color
+	//초기화
+	glGenBuffers(1, &buf);
+	glGenBuffers(1, &buf_index);
+	cube_location = { 0,0.1,0 };
+	cube_target = { 0,cube_location[1]-3,cube_location[1]-3 };
+	cube_up = { 0,1,0 };
+	lightpos = { 0.0,0.4,1.0 };
+	lightpos2 = { 0.0,0.4,1.1 };
+	lightType = { 0,0 };//점:0, 방향:1
+	lightMulti = { 0,0 };
+	light[0] = lightpos[0];
+	light[1] = lightpos[1];
+	light[2] = lightpos[2];
+	light[9] = lightpos[0] + 0.1;
+	light[10] = lightpos[1];
+	light[11] = lightpos[2];
+	light[18] = lightpos[0] + 0.05;
+	light[19] = lightpos[1] + 0.1;
+	light[20] = lightpos[2];
+	light[27] = lightpos2[0];
+	light[28] = lightpos2[1];
+	light[29] = lightpos2[2];
+	light[36] = lightpos2[0] + 0.1;
+	light[37] = lightpos2[1];
+	light[38] = lightpos2[2];
+	light[45] = lightpos2[0] + 0.05;
+	light[46] = lightpos2[1] + 0.1;
+	light[47] = lightpos2[2];
+
+	//
+	//
+	float buildingToBuilding = 0.15;
+	float leftRight = -0.15;
+	for (int i = 0; i < 10; i++) {
+		if (i >= 5) {
+			leftRight = 0.15;
+			buildingToBuilding =(0.15*(i-5)) / i;
+		}
+		buildingVect.push_back(-0.05 + leftRight);
+		buildingVect.push_back(0);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i%2);
+		buildingVect.push_back(1.0-0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(-0.05 + leftRight);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(+0.05 + leftRight);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(0.05 + leftRight);
+		buildingVect.push_back(0);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		//밑둥
+		float randomY = (rand() % 10-4)/30.0;
+		buildingVect.push_back(-0.05 + leftRight);
+		buildingVect.push_back(0.3+randomY);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);//4
+
+		buildingVect.push_back(-0.05 + leftRight);
+		buildingVect.push_back(0.3+randomY);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);//5
+
+		buildingVect.push_back(0 + leftRight);
+		buildingVect.push_back(0.3);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(0 + leftRight);
+		buildingVect.push_back(0.3);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(0 + leftRight);
+		buildingVect.push_back(0.35);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+
+		buildingVect.push_back(0 + leftRight);
+		buildingVect.push_back(0.35);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		randomY = (rand() % 10 - 4) / 30.0;
+		buildingVect.push_back(0.05 + leftRight);
+		buildingVect.push_back(0.35+ randomY);
+		buildingVect.push_back(0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);//10
+
+		buildingVect.push_back(0.05 + leftRight);
+		buildingVect.push_back(0.35+ randomY);
+		buildingVect.push_back(-0.05 + buildingToBuilding*i);
+		buildingVect.push_back(0.1*i);
+		buildingVect.push_back(i % 2);
+		buildingVect.push_back(1.0 - 0.1*i);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);
+		buildingVect.push_back(0);//11
+	}
+	//vertex 12*9=108
+	//반시계방향!
+	for (int i = 0; i < 10; i++) {
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(1 + i * 12);
+		buildingVectIndex.push_back(0 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(2 + i * 12);
+		buildingVectIndex.push_back(1 + i * 12);
+		//밑둥
+		buildingVectIndex.push_back(2 + i * 12);
+		buildingVectIndex.push_back(5 + i * 12);
+		buildingVectIndex.push_back(1 + i * 12);
+
+		buildingVectIndex.push_back(2 + i * 12);
+		buildingVectIndex.push_back(6 + i * 12);
+		buildingVectIndex.push_back(5 + i * 12);
+
+		buildingVectIndex.push_back(2 + i * 12);
+		buildingVectIndex.push_back(10 + i * 12);
+		buildingVectIndex.push_back(6 + i * 12);
+
+		buildingVectIndex.push_back(10 + i * 12);
+		buildingVectIndex.push_back(9 + i * 12);
+		buildingVectIndex.push_back(6 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(0 + i * 12);
+		buildingVectIndex.push_back(4 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(4 + i * 12);
+		buildingVectIndex.push_back(7 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(7 + i * 12);
+		buildingVectIndex.push_back(11 + i * 12);
+
+		buildingVectIndex.push_back(11 + i * 12);
+		buildingVectIndex.push_back(7 + i * 12);
+		buildingVectIndex.push_back(8 + i * 12);
+
+		buildingVectIndex.push_back(1 + i * 12);
+		buildingVectIndex.push_back(4 + i * 12);
+		buildingVectIndex.push_back(0 + i * 12);
+
+		buildingVectIndex.push_back(1 + i * 12);
+		buildingVectIndex.push_back(5 + i * 12);
+		buildingVectIndex.push_back(4 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(10 + i * 12);
+		buildingVectIndex.push_back(2 + i * 12);
+
+		buildingVectIndex.push_back(3 + i * 12);
+		buildingVectIndex.push_back(11 + i * 12);
+		buildingVectIndex.push_back(10 + i * 12);
+
+		//밑둥+ 옆쪽 한거임 이제 위에 옥탑부분만 하믄 댄당
+		buildingVectIndex.push_back(7 + i * 12);
+		buildingVectIndex.push_back(4 + i * 12);
+		buildingVectIndex.push_back(5 + i * 12);
+
+		buildingVectIndex.push_back(7 + i * 12);
+		buildingVectIndex.push_back(5 + i * 12);
+		buildingVectIndex.push_back(6 + i * 12);
+
+		buildingVectIndex.push_back(9 + i * 12);
+		buildingVectIndex.push_back(8 + i * 12);
+		buildingVectIndex.push_back(7 + i * 12);
+
+		buildingVectIndex.push_back(9 + i * 12);
+		buildingVectIndex.push_back(7 + i * 12);
+		buildingVectIndex.push_back(6 + i * 12);
+
+		buildingVectIndex.push_back(11 + i * 12);
+		buildingVectIndex.push_back(8 + i * 12);
+		buildingVectIndex.push_back(9 + i * 12);
+
+		buildingVectIndex.push_back(11 + i * 12);
+		buildingVectIndex.push_back(9 + i * 12);
+		buildingVectIndex.push_back(10 + i * 12);
+		//20*3=60
+	}
+	cube_mode = 0;
+
+	int vertexNum = buildingVect.size() / 9;//점의 갯수
+	vertexNormal = new float*[vertexNum];
+	for (int i = 0; i < vertexNum; i++) {
+		vertexNormal[i] = new float[3];//xyz 벡터
+		vertexNormal[i][0] = 0;
+		vertexNormal[i][1] = 0;
+		vertexNormal[i][2] = 0;
+	}
+	glm::vec3 p1, p2, p3, a, b, result;
+	for (int i = 0; i < buildingVectIndex.size(); i++) {
+		//인덱스 버퍼의 모든 데이터를 훑을거임
+		switch (i % 3) {
+		case 0:
+			p1 = { buildingVect[buildingVectIndex[i] * 9],//첫번째넘의 x
+			   buildingVect[buildingVectIndex[i] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i] * 9 + 2] };//z
+			p2 = { buildingVect[buildingVectIndex[i + 1] * 9],//두번쨰넘의 x
+				buildingVect[buildingVectIndex[i + 1] * 9 + 1],//y
+				buildingVect[buildingVectIndex[i + 1] * 9 + 2] };//z
+			p3 = { buildingVect[buildingVectIndex[i + 2] * 9],//세번째넘의 x
+			   buildingVect[buildingVectIndex[i + 2] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i + 2] * 9 + 2] };//z
+			a = p2 - p1;
+			b = p3 - p1;
+			result = glm::normalize(glm::cross(a, b));
+			vertexNormal[buildingVectIndex[i]][0] += result.x;
+			vertexNormal[buildingVectIndex[i]][1] += result.y;
+			vertexNormal[buildingVectIndex[i]][2] += result.z;
+			break;
+		case 1:
+			p1 = { buildingVect[buildingVectIndex[i] * 9],//첫번째넘의 x
+				buildingVect[buildingVectIndex[i] * 9 + 1],//y
+				buildingVect[buildingVectIndex[i] * 9 + 2] };//z
+			p2 = { buildingVect[buildingVectIndex[i + 1] * 9],//두번쨰넘의 x
+			   buildingVect[buildingVectIndex[i + 1] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i + 1] * 9 + 2] };//z
+			p3 = { buildingVect[buildingVectIndex[i - 1] * 9],//세번째넘의 x
+			   buildingVect[buildingVectIndex[i - 1] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i - 1] * 9 + 2] };//z
+			a = p2 - p1;
+			b = p3 - p1;
+			result = glm::normalize(glm::cross(a, b));
+			vertexNormal[buildingVectIndex[i]][0] += result.x;
+			vertexNormal[buildingVectIndex[i]][1] += result.y;
+			vertexNormal[buildingVectIndex[i]][2] += result.z;
+			break;
+		case 2:
+			p1 = { buildingVect[buildingVectIndex[i] * 9],//첫번째넘의 x
+				buildingVect[buildingVectIndex[i] * 9 + 1],//y
+				buildingVect[buildingVectIndex[i] * 9 + 2] };//z
+			p2 = { buildingVect[buildingVectIndex[i - 2] * 9],//두번쨰넘의 x
+			   buildingVect[buildingVectIndex[i - 2] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i - 2] * 9 + 2] };//z
+			p3 = { buildingVect[buildingVectIndex[i - 1] * 9],//세번째넘의 x
+			   buildingVect[buildingVectIndex[i - 1] * 9 + 1],//y
+			   buildingVect[buildingVectIndex[i - 1] * 9 + 2] };//z
+			a = p2 - p1;
+			b = p3 - p1;
+			result = glm::normalize(glm::cross(a, b));
+			vertexNormal[buildingVectIndex[i]][0] += result.x;
+			vertexNormal[buildingVectIndex[i]][1] += result.y;
+			vertexNormal[buildingVectIndex[i]][2] += result.z;
+			break;
+		}
+	}
+
+	for (int j = 0; j < vertexNum; j++) {//점 갯수만큼
+		result = glm::normalize(glm::vec3(vertexNormal[j][0], vertexNormal[j][1], vertexNormal[j][2]));
+		buildingVect[j * 9 + 6] = result.x;
+		buildingVect[j * 9 + 7] = result.y;
+		buildingVect[j * 9 + 8] = result.z;
+	}
+	//요 1이 matrix  1개 변환하겠다 이소리임
+
+	glClearColor(1.0, 1.0, 1.0, 1.0);
+	//glEnable(GL_DEPTH_TEST);//////////////////////////////////////////////////////////////////추가된것
+	//glDepthMask(GL_FALSE);
+	//glDepthFunc(GL_LESS);/////////////////////////////////////////////////////////////////////;
+	for (int i = 0; i < vertexNum; i++)
+		delete[] vertexNormal[i];
+	delete[] vertexNormal;
+	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+
+}
+int main(int argc, char **argv)
+{
+	//init GLUT and create Window
+	//initialize the GLUT
+	glutInit(&argc, argv);
+	//GLUT_DOUBLE enables double buffering (drawing to a background buffer while the other buffer is displayed)
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	//These two functions are used to define the position and size of the window. 
+	glutInitWindowPosition(200, 200);
+	glutInitWindowSize(ScreenX, ScreenY);
+	//This is used to define the name of the window.
+	glutCreateWindow("Simple OpenGL Window");
+
+	//call initization function
+	init();
+
+	//1.
+	//Generate VAO
+	GLuint VertexArrayID;
+	glGenVertexArrays(1, &VertexArrayID);
+	glBindVertexArray(VertexArrayID);
+
+	//3. 
+	g_programID = LoadShaders("VertexShader.txt", "FragmentShader.txt");
+	glUseProgram(g_programID);
+
+	glutKeyboardFunc(normalKeys);
+	glutSpecialFunc(specialKeys);
+	glutMouseFunc(myMouse);
+	glutMouseWheelFunc(mouseWheel);
+	glutDisplayFunc(renderScene);
+
+	//enter GLUT event processing cycle
+	glutMainLoop();
+
+	glDeleteVertexArrays(1, &VertexArrayID);
+
+	return 1;
+}
